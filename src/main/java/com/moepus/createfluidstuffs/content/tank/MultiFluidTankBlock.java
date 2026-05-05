@@ -2,6 +2,8 @@ package com.moepus.createfluidstuffs.content.tank;
 
 import com.moepus.createfluidstuffs.api.connectivity.MultiConnectivityHandler;
 import com.moepus.createfluidstuffs.blocks.AllBlockEntityTypes;
+import com.moepus.createfluidstuffs.items.BucketItem;
+import com.moepus.createfluidstuffs.items.JarItem;
 import com.simibubi.create.content.equipment.wrench.IWrenchable;
 import com.simibubi.create.foundation.advancement.AdvancementBehaviour;
 import com.simibubi.create.foundation.block.IBE;
@@ -36,7 +38,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraftforge.common.util.ForgeSoundType;
+import net.minecraft.world.ItemInteractionResult;
 
 public class MultiFluidTankBlock extends Block implements IWrenchable, IBE<MultiFluidTankBlockEntity> {
 
@@ -97,15 +99,18 @@ public class MultiFluidTankBlock extends Block implements IWrenchable, IBE<Multi
     }
 
     @Override
-    public InteractionResult use(BlockState state, Level world, BlockPos pos, Player player, InteractionHand hand, BlockHitResult ray) {
+    public ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level world, BlockPos pos, Player player, InteractionHand hand, BlockHitResult ray) {
         if(!player.isCreative())
-            return InteractionResult.PASS;
+            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+        // Let our custom bucket/jar handle fluid transfer via their own useOn() logic
+        if (stack.getItem() instanceof BucketItem || stack.getItem() instanceof JarItem)
+            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         MultiFluidTankBlockEntity tankBE = getBlockEntity(world, pos);
         if (tankBE == null)
-            return InteractionResult.PASS;
+            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         MultiFluidTankBlockEntity controllerBE = tankBE.getControllerBE();
         if (controllerBE == null)
-            return InteractionResult.PASS;
+            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
 
         return controllerBE.onCreativeInsertFluid(player, hand);
     }
@@ -205,8 +210,8 @@ public class MultiFluidTankBlock extends Block implements IWrenchable, IBE<Multi
 
     // Tanks are less noisy when placed in batch
     public static final SoundType SILENCED_METAL =
-            new ForgeSoundType(0.1F, 1.5F, () -> SoundEvents.METAL_BREAK, () -> SoundEvents.METAL_STEP,
-                    () -> SoundEvents.METAL_PLACE, () -> SoundEvents.METAL_HIT, () -> SoundEvents.METAL_FALL);
+            new SoundType(0.1F, 1.5F, SoundEvents.METAL_BREAK, SoundEvents.METAL_STEP,
+                    SoundEvents.METAL_PLACE, SoundEvents.METAL_HIT, SoundEvents.METAL_FALL);
 
     @Override
     public SoundType getSoundType(BlockState state, LevelReader world, BlockPos pos, Entity entity) {

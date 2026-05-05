@@ -24,20 +24,19 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
-import net.minecraftforge.client.ForgeHooksClient;
-import net.minecraftforge.client.ForgeRenderTypes;
-import net.minecraftforge.client.RenderTypeGroup;
-import net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions;
-import net.minecraftforge.client.model.CompositeModel;
-import net.minecraftforge.client.model.QuadTransformers;
-import net.minecraftforge.client.model.SimpleModelState;
-import net.minecraftforge.client.model.geometry.IGeometryBakingContext;
-import net.minecraftforge.client.model.geometry.IGeometryLoader;
-import net.minecraftforge.client.model.geometry.IUnbakedGeometry;
-import net.minecraftforge.client.model.geometry.StandaloneGeometryBakingContext;
-import net.minecraftforge.client.model.geometry.UnbakedGeometryHelper;
-import net.minecraftforge.fluids.FluidUtil;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.neoforged.neoforge.client.ClientHooks;
+import net.neoforged.neoforge.client.RenderTypeGroup;
+import net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions;
+import net.neoforged.neoforge.client.model.CompositeModel;
+import net.neoforged.neoforge.client.model.QuadTransformers;
+import net.neoforged.neoforge.client.model.SimpleModelState;
+import net.neoforged.neoforge.client.model.geometry.IGeometryBakingContext;
+import net.neoforged.neoforge.client.model.geometry.IGeometryLoader;
+import net.neoforged.neoforge.client.model.geometry.IUnbakedGeometry;
+import net.neoforged.neoforge.client.model.geometry.StandaloneGeometryBakingContext;
+import net.neoforged.neoforge.client.model.geometry.UnbakedGeometryHelper;
+import net.neoforged.neoforge.fluids.FluidUtil;
+import net.minecraft.core.registries.BuiltInRegistries;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Quaternionf;
@@ -72,7 +71,7 @@ public class JarModel implements IUnbakedGeometry<JarModel>
 
     public static RenderTypeGroup getLayerRenderTypes(boolean unlit)
     {
-        return new RenderTypeGroup(RenderType.translucent(), unlit ? ForgeRenderTypes.ITEM_UNSORTED_UNLIT_TRANSLUCENT.get() : ForgeRenderTypes.ITEM_UNSORTED_TRANSLUCENT.get());
+        return new RenderTypeGroup(RenderType.translucent(), RenderType.translucent());
     }
 
     /**
@@ -89,7 +88,7 @@ public class JarModel implements IUnbakedGeometry<JarModel>
         return fluid == Fluids.EMPTY;
     }
     @Override
-    public BakedModel bake(IGeometryBakingContext context, ModelBaker baker, Function<Material, TextureAtlasSprite> spriteGetter, ModelState modelState, ItemOverrides overrides, ResourceLocation modelLocation)
+    public BakedModel bake(IGeometryBakingContext context, ModelBaker baker, Function<Material, TextureAtlasSprite> spriteGetter, ModelState modelState, ItemOverrides overrides)
     {
         Material baseLocation = context.hasMaterial("base") ? context.getMaterial("base") : null;
         Material fluidMaskLocation = context.hasMaterial("fluid") ? context.getMaterial("fluid") : null;
@@ -98,7 +97,7 @@ public class JarModel implements IUnbakedGeometry<JarModel>
         ResourceLocation texture = IClientFluidTypeExtensions.of(fluid).getStillTexture();
         if(texture == null)
             texture = IClientFluidTypeExtensions.of(fluid).getFlowingTexture();
-        Material fluidBlockMaterial = ForgeHooksClient.getBlockMaterial(texture);
+        Material fluidBlockMaterial = ClientHooks.getBlockMaterial(texture);
         TextureAtlasSprite fluidSprite = !isFluidEmpty() ? spriteGetter.apply(fluidBlockMaterial) : null;
 
         TextureAtlasSprite particleSprite = fluidSprite;
@@ -113,7 +112,7 @@ public class JarModel implements IUnbakedGeometry<JarModel>
         }
 
         // We need to disable GUI 3D and block lighting for this to render properly
-        var itemContext = StandaloneGeometryBakingContext.builder(context).withGui3d(false).withUseBlockLight(false).build(modelLocation);
+        var itemContext = StandaloneGeometryBakingContext.builder(context).withGui3d(false).withUseBlockLight(false).build(ResourceLocation.fromNamespaceAndPath("createfluidstuffs", "jar_model"));
         var modelBuilder = CompositeModel.Baked.builder(itemContext, particleSprite, new ContainedFluidOverrideHandler(overrides, baker, itemContext, this), context.getTransforms());
 
         var normalRenderTypes = getLayerRenderTypes(false);
@@ -121,8 +120,8 @@ public class JarModel implements IUnbakedGeometry<JarModel>
         if (baseLocation != null && baseSprite != null)
         {
             // Base texture
-            var unbaked = UnbakedGeometryHelper.createUnbakedItemElements(0, baseSprite.contents());
-            var quads = UnbakedGeometryHelper.bakeElements(unbaked, $ -> baseSprite, modelState, modelLocation);
+            var unbaked = UnbakedGeometryHelper.createUnbakedItemElements(0, baseSprite);
+            var quads = UnbakedGeometryHelper.bakeElements(unbaked, $ -> baseSprite, modelState);
             modelBuilder.addQuads(normalRenderTypes, quads);
         }
 
@@ -133,8 +132,8 @@ public class JarModel implements IUnbakedGeometry<JarModel>
             {
                 // Fluid layer
                 var transformedState = new SimpleModelState(modelState.getRotation().compose(FLUID_TRANSFORM), modelState.isUvLocked());
-                var unbaked = UnbakedGeometryHelper.createUnbakedItemMaskElements(1, templateSprite.contents()); // Use template as mask
-                var quads = UnbakedGeometryHelper.bakeElements(unbaked, $ -> fluidSprite, transformedState, modelLocation); // Bake with fluid texture
+                var unbaked = UnbakedGeometryHelper.createUnbakedItemMaskElements(1, templateSprite); // Use template as mask
+                var quads = UnbakedGeometryHelper.bakeElements(unbaked, $ -> fluidSprite, transformedState); // Bake with fluid texture
 
                 if(color != 0) QuadTransformers.applyingColor(color).processInPlace(quads);
 
@@ -195,11 +194,11 @@ public class JarModel implements IUnbakedGeometry<JarModel>
                         Fluid fluid = fluidStack.getFluid();
                         IClientFluidTypeExtensions clientFluid = IClientFluidTypeExtensions.of(fluid);
                         int color = clientFluid.getTintColor(fluidStack);
-                        String name = ForgeRegistries.FLUIDS.getKey(fluid).toString() + color;
+                        String name = BuiltInRegistries.FLUID.getKey(fluid).toString() + color;
                         if (!cache.containsKey(name))
                         {
                             JarModel unbaked = withFluid(fluid, color);
-                            BakedModel bakedModel = unbaked.bake(owner, baker, Material::sprite, BlockModelRotation.X0_Y0, this, new ResourceLocation("forge:bucket_override"));
+                            BakedModel bakedModel = unbaked.bake(owner, baker, Material::sprite, BlockModelRotation.X0_Y0, this);
                             cache.put(name, bakedModel);
                             return bakedModel;
                         }

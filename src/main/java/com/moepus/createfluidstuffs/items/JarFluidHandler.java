@@ -6,26 +6,22 @@
 package com.moepus.createfluidstuffs.items;
 
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.core.Direction;
-import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.common.capabilities.ICapabilityProvider;
-import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.fluids.*;
-import net.minecraftforge.fluids.capability.IFluidHandlerItem;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.Tag;
+import net.minecraft.world.item.component.CustomData;
+import net.neoforged.neoforge.fluids.*;
+import net.neoforged.neoforge.fluids.capability.IFluidHandlerItem;
 
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.UUID;
 
-public class JarFluidHandler implements IFluidHandlerItem, ICapabilityProvider
+public class JarFluidHandler implements IFluidHandlerItem
 {
     public static final String FLUID_NBT_KEY = "Fluid";
     public static final String UUID_NBT_KEY = "UUID";
-
-    private final LazyOptional<IFluidHandlerItem> holder = LazyOptional.of(() -> this);
 
     @NotNull
     protected ItemStack container;
@@ -51,25 +47,22 @@ public class JarFluidHandler implements IFluidHandlerItem, ICapabilityProvider
     @NotNull
     public FluidStack getFluid()
     {
-        CompoundTag tagCompound = container.getTag();
-        if (tagCompound == null || !tagCompound.contains(FLUID_NBT_KEY))
+        CustomData customData = container.get(DataComponents.CUSTOM_DATA);
+        if (customData == null || !customData.getUnsafe().contains(FLUID_NBT_KEY))
         {
             return FluidStack.EMPTY;
         }
-        return FluidStack.loadFluidStackFromNBT(tagCompound.getCompound(FLUID_NBT_KEY));
+        return FluidStack.CODEC.parse(NbtOps.INSTANCE, customData.getUnsafe().getCompound(FLUID_NBT_KEY))
+                .result().orElse(FluidStack.EMPTY);
     }
 
     protected void setFluid(FluidStack fluid)
     {
-        if (!container.hasTag())
-        {
-            container.setTag(new CompoundTag());
-        }
-
-        CompoundTag fluidTag = new CompoundTag();
-        fluid.writeToNBT(fluidTag);
-        container.getTag().put(FLUID_NBT_KEY, fluidTag);
-        container.getTag().putUUID(UUID_NBT_KEY, UUID.randomUUID());
+        Tag fluidTag = FluidStack.CODEC.encodeStart(NbtOps.INSTANCE, fluid).result().orElse(new CompoundTag());
+        CompoundTag tag = container.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+        tag.put(FLUID_NBT_KEY, fluidTag);
+        tag.putUUID(UUID_NBT_KEY, UUID.randomUUID());
+        container.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
     }
 
     @Override
@@ -108,16 +101,14 @@ public class JarFluidHandler implements IFluidHandlerItem, ICapabilityProvider
         FluidStack contained = getFluid();
         if (contained.isEmpty())
         {
-            if(resource.getAmount() >= capacity)
+            int fillAmount = Math.min(resource.getAmount(), capacity);
+            if (doFill.execute())
             {
-                if (doFill.execute())
-                {
-                    FluidStack filled = resource.copy();
-                    filled.setAmount(capacity);
-                    setFluid(filled);
-                }
-                return capacity;
+                FluidStack filled = resource.copy();
+                filled.setAmount(fillAmount);
+                setFluid(filled);
             }
+            return fillAmount;
         }
         return 0;
     }
@@ -126,7 +117,7 @@ public class JarFluidHandler implements IFluidHandlerItem, ICapabilityProvider
     @Override
     public FluidStack drain(FluidStack resource, FluidAction action)
     {
-        if (resource.isEmpty() || !resource.isFluidEqual(getFluid()))
+        if (resource.isEmpty() || !FluidStack.isSameFluid(resource, getFluid()))
         {
             return FluidStack.EMPTY;
         }
@@ -148,17 +139,23 @@ public class JarFluidHandler implements IFluidHandlerItem, ICapabilityProvider
             return FluidStack.EMPTY;
         }
 
-        if(maxDrain < capacity)
-        {
-            return FluidStack.EMPTY;
-        }
-
+        int drainAmount = Math.min(maxDrain, contained.getAmount());
         FluidStack drained = contained.copy();
-        drained.setAmount(capacity);
+        drained.setAmount(drainAmount);
 
         if (action.execute())
         {
-            setContainerToEmpty();
+            int remaining = contained.getAmount() - drainAmount;
+            if (remaining <= 0)
+            {
+                setContainerToEmpty();
+            }
+            else
+            {
+                FluidStack newContained = contained.copy();
+                newContained.setAmount(remaining);
+                setFluid(newContained);
+            }
         }
 
         return drained;
@@ -180,13 +177,13 @@ public class JarFluidHandler implements IFluidHandlerItem, ICapabilityProvider
      */
     protected void setContainerToEmpty()
     {
-        container.removeTagKey(FLUID_NBT_KEY);
-        container.removeTagKey(UUID_NBT_KEY);
-    }
-
-    @Override
-    @NotNull
-    public <T> LazyOptional<T> getCapability(@NotNull Capability<T> capability, @Nullable Direction facing) {
-        return ForgeCapabilities.FLUID_HANDLER_ITEM.orEmpty(capability, holder);
+        CompoundTag tag = container.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+        tag.remove(FLUID_NBT_KEY);
+        tag.remove(UUID_NBT_KEY);
+        if (tag.isEmpty()) {
+            container.remove(DataComponents.CUSTOM_DATA);
+        } else {
+            container.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+        }
     }
 }

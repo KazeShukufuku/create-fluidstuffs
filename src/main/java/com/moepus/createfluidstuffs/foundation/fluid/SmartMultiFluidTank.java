@@ -1,11 +1,12 @@
 package com.moepus.createfluidstuffs.foundation.fluid;
 
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
-import net.minecraftforge.fluids.FluidStack;
+import net.neoforged.neoforge.fluids.FluidStack;
 import org.jetbrains.annotations.NotNull;
-import net.minecraftforge.fluids.IFluidTank;
-import net.minecraftforge.fluids.capability.IFluidHandler;
+import net.neoforged.neoforge.fluids.IFluidTank;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 
 import java.util.OptionalInt;
 import java.util.function.Consumer;
@@ -87,7 +88,7 @@ public class SmartMultiFluidTank implements IFluidHandler, IFluidTank {
             if (!nbt.contains(Integer.toString(i), Tag.TAG_COMPOUND))
                 break;
             CompoundTag fluid_nbt = nbt.getCompound(Integer.toString(i));
-            FluidStack fluid = FluidStack.loadFluidStackFromNBT(fluid_nbt);
+            FluidStack fluid = FluidStack.CODEC.parse(NbtOps.INSTANCE, fluid_nbt).result().orElse(FluidStack.EMPTY);
             setFluid(i, fluid);
         }
         return this;
@@ -95,9 +96,8 @@ public class SmartMultiFluidTank implements IFluidHandler, IFluidTank {
 
     public CompoundTag writeToNBT(CompoundTag nbt) {
         for (int i = 0; i < getTanks(); i++) {
-            CompoundTag fluid_nbt = new CompoundTag();
-            multi_fluid[i].writeToNBT(fluid_nbt);
-            nbt.put(Integer.toString(i), fluid_nbt);
+            Tag encoded = FluidStack.CODEC.encodeStart(NbtOps.INSTANCE, multi_fluid[i]).result().orElse(new CompoundTag());
+            nbt.put(Integer.toString(i), encoded);
         }
         return nbt;
     }
@@ -131,7 +131,7 @@ public class SmartMultiFluidTank implements IFluidHandler, IFluidTank {
             if (multi_fluid[i].isEmpty() && first_empty < 0)
                 first_empty = i;
 
-            if (multi_fluid[i].isFluidEqual(resource))
+            if (FluidStack.isSameFluid(multi_fluid[i], resource))
                 return OptionalInt.of(i);
         }
         if (first_empty >= 0)
@@ -156,7 +156,7 @@ public class SmartMultiFluidTank implements IFluidHandler, IFluidTank {
         int target_tank = target_tank_opt.getAsInt();
 
         if (multi_fluid[target_tank].isEmpty()) {
-            multi_fluid[target_tank] = new FluidStack(resource, Math.min(getSpace(), resource.getAmount()));
+            multi_fluid[target_tank] = resource.copyWithAmount(Math.min(getSpace(), resource.getAmount()));
             onContentsChanged();
             return multi_fluid[target_tank].getAmount();
         }
@@ -183,7 +183,7 @@ public class SmartMultiFluidTank implements IFluidHandler, IFluidTank {
         if (multi_fluid[target_tank].isEmpty()) return FluidStack.EMPTY;
 
         int drained = Math.min(multi_fluid[target_tank].getAmount(), resource.getAmount());
-        FluidStack stack = new FluidStack(multi_fluid[target_tank], drained);
+        FluidStack stack = multi_fluid[target_tank].copyWithAmount(drained);
 
         if (action.execute() && drained > 0) {
             multi_fluid[target_tank].shrink(drained);
@@ -197,7 +197,7 @@ public class SmartMultiFluidTank implements IFluidHandler, IFluidTank {
         for (int i = 0; i < getTanks(); i++) {
             if (!multi_fluid[i].isEmpty()) {
                 int drained = Math.min(maxDrain, multi_fluid[i].getAmount());
-                FluidStack stack = new FluidStack(multi_fluid[i], drained);
+                FluidStack stack = multi_fluid[i].copyWithAmount(drained);
                 if (action.execute() && drained > 0) {
                     multi_fluid[i].shrink(drained);
                     onContentsChanged();

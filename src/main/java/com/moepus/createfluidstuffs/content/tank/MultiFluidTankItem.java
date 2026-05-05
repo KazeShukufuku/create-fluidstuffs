@@ -6,17 +6,19 @@ import com.simibubi.create.api.connectivity.ConnectivityHandler;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.fluids.FluidStack;
+import net.neoforged.neoforge.fluids.FluidStack;
 
 public class MultiFluidTankItem extends BlockItem {
 
@@ -39,20 +41,22 @@ public class MultiFluidTankItem extends BlockItem {
         MinecraftServer minecraftserver = p_195943_2_.getServer();
         if (minecraftserver == null)
             return false;
-        CompoundTag nbt = p_195943_4_.getTagElement("BlockEntityTag");
-        if (nbt != null) {
+        CustomData blockEntityData = p_195943_4_.get(DataComponents.BLOCK_ENTITY_DATA);
+        if (blockEntityData != null) {
+            CompoundTag nbt = blockEntityData.copyTag();
             nbt.remove("Luminosity");
             nbt.remove("Size");
             nbt.remove("Height");
             nbt.remove("Controller");
             nbt.remove("LastKnownPos");
             if (nbt.contains("TankContent")) {
-                FluidStack fluid = FluidStack.loadFluidStackFromNBT(nbt.getCompound("TankContent"));
+                FluidStack fluid = FluidStack.parseOptional(p_195943_2_.registryAccess(), nbt.getCompound("TankContent"));
                 if (!fluid.isEmpty()) {
                     fluid.setAmount(Math.min(MultiFluidTankBlockEntity.getCapacityMultiplier(), fluid.getAmount()));
-                    nbt.put("TankContent", fluid.writeToNBT(new CompoundTag()));
+                    nbt.put("TankContent", (CompoundTag) fluid.save(p_195943_2_.registryAccess()));
                 }
             }
+            p_195943_4_.set(DataComponents.BLOCK_ENTITY_DATA, CustomData.of(nbt));
         }
         return super.updateCustomBlockEntityTag(p_195943_1_, p_195943_2_, p_195943_3_, p_195943_4_, p_195943_5_);
     }

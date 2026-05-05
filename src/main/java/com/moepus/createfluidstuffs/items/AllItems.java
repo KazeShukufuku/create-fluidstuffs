@@ -1,13 +1,11 @@
 package com.moepus.createfluidstuffs.items;
 
-import com.moepus.createfluidstuffs.AllCreativeModeTabs;
 import com.tterrag.registrate.util.entry.ItemEntry;
 
 import static com.moepus.createfluidstuffs.CreateFluidStuffs.REGISTRATE;
 
 public class AllItems {
     static {
-        REGISTRATE.setCreativeTab(AllCreativeModeTabs.BASE_CREATIVE_TAB);
     }
     public static final ItemEntry<JarItem> JAR =
             REGISTRATE.item("jar", JarItem::new)

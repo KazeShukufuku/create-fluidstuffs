@@ -6,11 +6,11 @@ import com.simibubi.create.foundation.blockEntity.renderer.SafeBlockEntityRender
 import com.simibubi.create.foundation.fluid.FluidRenderer;
 
 import net.createmod.catnip.animation.LerpedFloat;
-import net.createmod.catnip.platform.ForgeCatnipServices;
+import net.createmod.catnip.platform.CatnipServices;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.util.Mth;
-import net.minecraftforge.fluids.FluidStack;
+import net.neoforged.neoforge.fluids.FluidStack;
 
 public class MultiFluidTankRender extends SafeBlockEntityRenderer<MultiFluidTankBlockEntity> {
 
@@ -61,7 +61,7 @@ public class MultiFluidTankRender extends SafeBlockEntityRenderer<MultiFluidTank
 
             ms.pushPose();
             ms.translate(0, clampedLevel - totalHeight + accheight, 0);
-            ForgeCatnipServices.FLUID_RENDERER.renderFluidBox(fluidStack, xMin, yMin, zMin, xMax, yMax, zMax, buffer, ms, light, false, false);
+            CatnipServices.FLUID_RENDERER.renderFluidBox(fluidStack.getFluid().defaultFluidState(), xMin, yMin, zMin, xMax, yMax, zMax, buffer, ms, light, false, false);
             ms.popPose();
 
             accheight += clampedLevel;

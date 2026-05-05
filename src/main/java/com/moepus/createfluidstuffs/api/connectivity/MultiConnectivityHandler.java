@@ -22,10 +22,9 @@ import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.IFluidTank;
-import net.minecraftforge.fluids.capability.IFluidHandler;
+import net.neoforged.neoforge.fluids.FluidStack;
+import net.neoforged.neoforge.fluids.IFluidTank;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 
 public class MultiConnectivityHandler {
 
@@ -345,12 +344,7 @@ public class MultiConnectivityHandler {
             }
         }
 
-        if (be instanceof IMultiBlockEntityContainer.Inventory inv && inv.hasInventory())
-            be.getCapability(ForgeCapabilities.ITEM_HANDLER)
-                    .invalidate();
-        if (be instanceof IMultiBlockEntityContainer.Fluid fluid && fluid.hasTank())
-            be.getCapability(ForgeCapabilities.FLUID_HANDLER)
-                    .invalidate();
+        be.invalidateCapabilities();
 
         if (be instanceof IMultiBlockEntityContainer.Fluid ifluidBE && ifluidBE.hasTank()) {
             toDistribute.forEach(fluid -> {

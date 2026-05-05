@@ -1,22 +1,17 @@
 package com.moepus.createfluidstuffs;
 
 import com.moepus.createfluidstuffs.items.JarModel;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.ModelEvent;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.ModelEvent;
 
-@Mod.EventBusSubscriber(value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD, modid = CreateFluidStuffs.ID)
+@EventBusSubscriber(value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD, modid = CreateFluidStuffs.ID)
 public class ClientSetup
 {
-    public static void onCtorClient(IEventBus modEventBus, IEventBus forgeEventBus) {
-        //modEventBus.addListener(ClientSetup::clientInit);
-    }
-
     @SubscribeEvent
     public static void onRegisterGeometryLoaders(ModelEvent.RegisterGeometryLoaders event)
     {
-        event.register("jar_model", JarModel.Loader.INSTANCE);
+        event.register(CreateFluidStuffs.asResource("jar_model"), JarModel.Loader.INSTANCE);
     }
 }

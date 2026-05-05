@@ -17,26 +17,24 @@ import com.simibubi.create.infrastructure.config.AllConfigs;
 import net.createmod.catnip.animation.LerpedFloat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResult;
+import net.minecraft.world.ItemInteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
-import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidType;
-import net.minecraftforge.fluids.IFluidTank;
-import net.minecraftforge.fluids.capability.IFluidHandler;
-import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
-import net.minecraftforge.fluids.capability.templates.FluidTank;
+import net.neoforged.neoforge.fluids.FluidStack;
+import net.neoforged.neoforge.fluids.FluidType;
+import net.neoforged.neoforge.fluids.IFluidTank;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+import net.neoforged.neoforge.fluids.capability.templates.FluidTank;
 
 import com.moepus.createfluidstuffs.content.tank.MultiFluidTankBlock.Shape;
 
@@ -45,7 +43,6 @@ public class MultiFluidTankBlockEntity extends SmartBlockEntity implements IHave
     private static final int MAX_SIZE = 3;
     private static final int tanks = 8;
 
-    protected LazyOptional<IFluidHandler> fluidCapability;
     protected boolean forceFluidLevelUpdate;
     protected SmartMultiFluidTank tankInventory;
     protected BlockPos controller;
@@ -65,13 +62,11 @@ public class MultiFluidTankBlockEntity extends SmartBlockEntity implements IHave
     public MultiFluidTankBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
         super(type, pos, state);
         tankInventory = createInventory();
-        fluidCapability = LazyOptional.of(() -> tankInventory);
         forceFluidLevelUpdate = true;
         updateConnectivity = false;
         window = true;
         height = 1;
         width = 1;
-        refreshCapability();
     }
 
     protected SmartMultiFluidTank createInventory() {
@@ -263,7 +258,7 @@ public class MultiFluidTankBlockEntity extends SmartBlockEntity implements IHave
             getLevel().setBlock(worldPosition, state, 22);
         }
 
-        refreshCapability();
+        invalidateCapabilities();
         setChanged();
         sendData();
     }
@@ -275,21 +270,19 @@ public class MultiFluidTankBlockEntity extends SmartBlockEntity implements IHave
         be.setWindows(!be.window);
     }
 
-    public InteractionResult onCreativeInsertFluid(Player player, InteractionHand hand) {
+    public ItemInteractionResult onCreativeInsertFluid(Player player, InteractionHand hand) {
         ItemStack stack = player.getItemInHand(hand);
         FluidStack fluidInItem = GenericItemEmptying.emptyItem(this.level, stack, true)
                 .getFirst();
         if (fluidInItem.isEmpty())
-            return InteractionResult.PASS;
+            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
 
-        LazyOptional<IFluidHandler> tankCapability = this.getCapability(ForgeCapabilities.FLUID_HANDLER);
-        if(!tankCapability.isPresent())
-            return InteractionResult.PASS;
-
-        IFluidHandler tank = tankCapability.orElse(null);
+        IFluidHandler tank = getFluidHandler(null);
+        if (tank == null)
+            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         tank.fill(fluidInItem, FluidAction.EXECUTE);
 
-        return InteractionResult.SUCCESS;
+        return ItemInteractionResult.SUCCESS;
     }
 
     public void sendDataImmediately() {
@@ -340,18 +333,21 @@ public class MultiFluidTankBlockEntity extends SmartBlockEntity implements IHave
         if (controller.equals(this.controller))
             return;
         this.controller = controller;
-        refreshCapability();
+        invalidateCapabilities();
         setChanged();
         sendData();
     }
 
     private void refreshCapability() {
-        LazyOptional<IFluidHandler> oldCap = fluidCapability;
-        fluidCapability = LazyOptional.of(() -> handlerForCapability());
-        oldCap.invalidate();
+        // Legacy method kept for removeController()
+        invalidateCapabilities();
     }
 
-    private IFluidHandler handlerForCapability() {
+    public @Nullable IFluidHandler getFluidHandler(@Nullable Direction side) {
+        return handlerForCapability();
+    }
+
+    public IFluidHandler handlerForCapability() {
         return isController() ? tankInventory
                 : getControllerBE() != null ? getControllerBE().handlerForCapability() : new FluidTank(0);
     }
@@ -375,12 +371,12 @@ public class MultiFluidTankBlockEntity extends SmartBlockEntity implements IHave
         if (controllerBE == null)
             return false;
         return containedFluidTooltip(tooltip, isPlayerSneaking,
-                controllerBE.getCapability(ForgeCapabilities.FLUID_HANDLER));
+                controllerBE.getFluidHandler(null));
     }
 
     @Override
-    protected void read(CompoundTag compound, boolean clientPacket) {
-        super.read(compound, clientPacket);
+    protected void read(CompoundTag compound, HolderLookup.Provider registries, boolean clientPacket) {
+        super.read(compound, registries, clientPacket);
 
         BlockPos controllerBefore = controller;
         int prevSize = width;
@@ -392,10 +388,8 @@ public class MultiFluidTankBlockEntity extends SmartBlockEntity implements IHave
         controller = null;
         lastKnownPos = null;
 
-        if (compound.contains("LastKnownPos"))
-            lastKnownPos = NbtUtils.readBlockPos(compound.getCompound("LastKnownPos"));
-        if (compound.contains("Controller"))
-            controller = NbtUtils.readBlockPos(compound.getCompound("Controller"));
+        lastKnownPos = NbtUtils.readBlockPos(compound, "LastKnownPos").orElse(null);
+        controller = NbtUtils.readBlockPos(compound, "Controller").orElse(null);
 
         if (isController()) {
             window = compound.getBoolean("Window");
@@ -448,7 +442,7 @@ public class MultiFluidTankBlockEntity extends SmartBlockEntity implements IHave
     }
 
     @Override
-    public void write(CompoundTag compound, boolean clientPacket) {
+    public void write(CompoundTag compound, HolderLookup.Provider registries, boolean clientPacket) {
         if (updateConnectivity)
             compound.putBoolean("Uninitialized", true);
 
@@ -463,7 +457,7 @@ public class MultiFluidTankBlockEntity extends SmartBlockEntity implements IHave
             compound.putInt("Height", height);
         }
         compound.putInt("Luminosity", luminosity);
-        super.write(compound, clientPacket);
+        super.write(compound, registries, clientPacket);
 
         if (!clientPacket)
             return;
@@ -472,21 +466,6 @@ public class MultiFluidTankBlockEntity extends SmartBlockEntity implements IHave
         if (queuedSync)
             compound.putBoolean("LazySync", true);
         forceFluidLevelUpdate = false;
-    }
-
-    @Nonnull
-    @Override
-    public <T> LazyOptional<T> getCapability(@Nonnull Capability<T> cap, @Nullable Direction side) {
-        if (!fluidCapability.isPresent())
-            refreshCapability();
-        if (cap == ForgeCapabilities.FLUID_HANDLER)
-            return fluidCapability.cast();
-        return super.getCapability(cap, side);
-    }
-
-    @Override
-    public void invalidate() {
-        super.invalidate();
     }
 
     @Override

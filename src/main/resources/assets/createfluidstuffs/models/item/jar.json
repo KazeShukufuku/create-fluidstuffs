@@ -1,5 +1,5 @@
 {
-  "parent": "forge:item/default",
+  "parent": "neoforge:item/default",
   "loader": "createfluidstuffs:jar_model",
   "textures": {
     "base": "createfluidstuffs:item/jar",

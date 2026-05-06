@@ -3,10 +3,10 @@
   "category": "misc",
   "key": {
     "B": {
-      "tag": "forge:plates/brass"
+      "tag": "c:plates/brass"
     },
     "C": {
-      "tag": "forge:barrels/wooden"
+      "tag": "c:barrels/wooden"
     }
   },
   "pattern": [
@@ -15,7 +15,7 @@
     "B"
   ],
   "result": {
-    "item": "createfluidstuffs:multi_fluid_tank"
+    "id": "createfluidstuffs:multi_fluid_tank"
   },
   "show_notification": true
 }

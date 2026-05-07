@@ -243,8 +243,10 @@ public class MultiFluidTankBlockEntity extends SmartBlockEntity implements IHave
         if (level.isClientSide)
             return;
         updateConnectivity = true;
-        if (!keepFluids)
-            applyFluidTankSize(1);
+        // Always reset capacity to single-block size. When called from
+        // splitMultiAndInvalidate (keepFluids=true), the controller tank has already
+        // been fully drained before this method is invoked, so no fluids are lost.
+        applyFluidTankSize(1);
         controller = null;
         width = 1;
         height = 1;
